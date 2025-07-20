@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Missionary Activity Sign-Up</title>
+  <meta charset="UTF-8" />
+  <style>
+    body { font-family: sans-serif; padding: 2rem; max-width: 600px; margin: auto; }
+    h2 { color: #2c3e50; }
+    .date-entry { margin: 10px 0; padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
+    .taken { background-color: #f9d6d5; }
+    .available { background-color: #d5f9d6; cursor: pointer; }
+    form { margin-top: 20px; display: none; }
+    label { display: block; margin: 8px 0 4px; }
+    input, textarea { width: 100%; padding: 6px; }
+    button { margin-top: 10px; padding: 10px 15px; }
+  </style>
+</head>
+<body>
+
+<h2>Sign Up for Missionary Activities</h2>
+<div id="dates"></div>
+
+<form id="signup-form">
+  <h3>Sign Up for <span id="selected-date"></span></h3>
+  <label for="name">Your Name</label>
+  <input type="text" id="name" required />
+  
+  <label for="contact">Contact Info</label>
+  <input type="text" id="contact" required />
+  
+  <label for="notes">Notes</label>
+  <textarea id="notes"></textarea>
+  
+  <button type="submit">Submit</button>
+</form>
+
+<script>
+const APP_URL = 'https://script.google.com/macros/s/AKfycbylhVun1z3zGQuTlDq3zANzfe696uXGRL3d3BoEgbOnsqH5zPrTCUSYldVZPkteerHzpA/exec'; 
+
+let selectedDate = '';
+
+function fetchDates() {
+  fetch(APP_URL)
+    .then(res => res.json())
+    .then(data => renderDates(data));
+}
+
+function renderDates(data) {
+  const container = document.getElementById('dates');
+  container.innerHTML = '';
+
+  data.forEach(entry => {
+    const div = document.createElement('div');
+    div.classList.add('date-entry');
+
+    const dateStr = new Date(entry.Date).toDateString();
+    div.dataset.date = entry.Date;
+
+    if (entry.Name) {
+      div.classList.add('taken');
+      div.innerHTML = `<strong>${dateStr}</strong><br>Already signed up by ${entry.Name}`;
+    } else {
+      div.classList.add('available');
+      div.innerHTML = `<strong>${dateStr}</strong><br><em>Available</em>`;
+      div.onclick = () => openForm(entry.Date);
+    }
+
+    container.appendChild(div);
+  });
+}
+
+function openForm(date) {
+  selectedDate = date;
+  document.getElementById('selected-date').textContent = new Date(date).toDateString();
+  document.getElementById('signup-form').style.display = 'block';
+  window.scrollTo(0, document.body.scrollHeight);
+}
+
+document.getElementById('signup-form').addEventListener('submit', function (e) {
+  e.preventDefault();
+  
+  const payload = {
+    Date: selectedDate,
+    Name: document.getElementById('name').value,
+    'Contact Info': document.getElementById('contact').value,
+    Notes: document.getElementById('notes').value,
+  };
+
+  fetch(APP_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json' }
+  })
+  .then(res => res.json())
+  .then(result => {
+    if (result.success) {
+      alert('Thank you! You are signed up.');
+      document.getElementById('signup-form').reset();
+      document.getElementById('signup-form').style.display = 'none';
+      fetchDates(); // refresh list
+    } else {
+      alert('There was a problem: ' + result.message);
+    }
+  });
+});
+
+fetchDates();
+</script>
+
+</body>
+</html>
