@@ -1,84 +1,167 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Missionary Activity Sign-Up</title>
+  <title>Missionary Meal Sign-Up</title>
   <meta charset="UTF-8" />
   <style>
-    body { font-family: sans-serif; padding: 2rem; max-width: 600px; margin: auto; }
-    h2 { color: #2c3e50; }
-    .date-entry { margin: 10px 0; padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
-    .taken { background-color: #f9d6d5; }
-    .available { background-color: #d5f9d6; cursor: pointer; }
-    form { margin-top: 20px; display: none; }
-    label { display: block; margin: 8px 0 4px; }
-    input, textarea { width: 100%; padding: 6px; }
+    body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; }
+    h1 { text-align: center; }
+    .calendar-nav {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+      text-align: center;
+    }
+    .calendar-cell {
+      border: 1px solid #ccc;
+      padding: 10px;
+      min-height: 60px;
+      position: relative;
+      cursor: pointer;
+      background-color: #d5f9d6; /* green for available */
+    }
+    .calendar-cell.taken {
+      background-color: #f9d6d5; /* red for taken */
+      cursor: default;
+    }
+    .calendar-cell.disabled {
+      background-color: #eee;
+      cursor: default;
+    }
+    .day-name {
+      font-weight: bold;
+      background-color: #f0f0f0;
+    }
+    form {
+      margin-top: 30px;
+      display: none;
+    }
+    label { display: block; margin-top: 10px; }
+    input, textarea { width: 100%; padding: 6px; margin-top: 4px; }
     button { margin-top: 10px; padding: 10px 15px; }
   </style>
 </head>
 <body>
 
-<h2>Sign Up for Missionary Activities</h2>
-<div id="dates"></div>
+<h1>Missionary Meal Sign-Up</h1>
+
+<div class="calendar-nav">
+  <button onclick="changeMonth(-1)">&lt;</button>
+  <span id="month-label"></span>
+  <button onclick="changeMonth(1)">&gt;</button>
+  <button onclick="changeMonth(2)">≫</button>
+</div>
+
+<div class="calendar-grid" id="calendar"></div>
 
 <form id="signup-form">
-  <h3>Sign Up for <span id="selected-date"></span></h3>
-  <label for="name">Your Name</label>
+  <h3>Sign Up for <span id="selected-date-label"></span></h3>
+  <label>Your Name</label>
   <input type="text" id="name" required />
-  
-  <label for="contact">Contact Info</label>
+  <label>Contact Info</label>
   <input type="text" id="contact" required />
-  
-  <label for="notes">Notes</label>
+  <label>Notes</label>
   <textarea id="notes"></textarea>
-  
   <button type="submit">Submit</button>
 </form>
 
 <script>
-const APP_URL = 'https://script.google.com/macros/s/AKfycbylhVun1z3zGQuTlDq3zANzfe696uXGRL3d3BoEgbOnsqH5zPrTCUSYldVZPkteerHzpA/exec'; 
+const APP_URL = 'https://script.google.com/macros/s/AKfycbylhVun1z3zGQuTlDq3zANzfe696uXGRL3d3BoEgbOnsqH5zPrTCUSYldVZPkteerHzpA/exec'; // ← Replace this
 
+let currentMonthOffset = 0;
+let sheetData = [];
+
+const calendar = document.getElementById('calendar');
+const monthLabel = document.getElementById('month-label');
 let selectedDate = '';
 
-function fetchDates() {
+const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function changeMonth(offset) {
+  currentMonthOffset += offset;
+  renderCalendar();
+}
+
+function fetchSheetData() {
   fetch(APP_URL)
     .then(res => res.json())
-    .then(data => renderDates(data));
+    .then(data => {
+      sheetData = data;
+      renderCalendar();
+    });
 }
 
-function renderDates(data) {
-  const container = document.getElementById('dates');
-  container.innerHTML = '';
+function renderCalendar() {
+  const baseDate = new Date();
+  baseDate.setMonth(baseDate.getMonth() + currentMonthOffset);
+  const year = baseDate.getFullYear();
+  const month = baseDate.getMonth();
 
-  data.forEach(entry => {
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startDayOfWeek = firstDay.getDay();
+  const totalDays = lastDay.getDate();
+
+  // Set month label
+  monthLabel.textContent = baseDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  calendar.innerHTML = '';
+
+  // Render day name headers
+  dayNames.forEach(d => {
     const div = document.createElement('div');
-    div.classList.add('date-entry');
+    div.className = 'day-name';
+    div.textContent = d;
+    calendar.appendChild(div);
+  });
 
-    const dateStr = new Date(entry.Date).toDateString();
-    div.dataset.date = entry.Date;
+  // Fill blanks before the 1st
+  for (let i = 0; i < startDayOfWeek; i++) {
+    const blank = document.createElement('div');
+    blank.className = 'calendar-cell disabled';
+    calendar.appendChild(blank);
+  }
 
-    if (entry.Name) {
-      div.classList.add('taken');
-      div.innerHTML = `<strong>${dateStr}</strong><br>Already signed up by ${entry.Name}`;
+  for (let day = 1; day <= totalDays; day++) {
+    const thisDate = new Date(year, month, day);
+    const iso = thisDate.toISOString().split('T')[0];
+
+    const cell = document.createElement('div');
+    cell.className = 'calendar-cell';
+    cell.textContent = day;
+
+    const match = sheetData.find(row => {
+      if (!row.Date) return false;
+      const sheetDate = new Date(row.Date);
+      return sheetDate.toDateString() === thisDate.toDateString();
+    });
+
+    if (match && match.Name) {
+      cell.classList.add('taken');
+      cell.innerHTML += `<br><small>${match.Name}</small>`;
     } else {
-      div.classList.add('available');
-      div.innerHTML = `<strong>${dateStr}</strong><br><em>Available</em>`;
-      div.onclick = () => openForm(entry.Date);
+      cell.onclick = () => openForm(iso);
     }
 
-    container.appendChild(div);
-  });
+    calendar.appendChild(cell);
+  }
 }
 
-function openForm(date) {
-  selectedDate = date;
-  document.getElementById('selected-date').textContent = new Date(date).toDateString();
+function openForm(dateStr) {
+  selectedDate = dateStr;
+  document.getElementById('selected-date-label').textContent = new Date(dateStr).toDateString();
   document.getElementById('signup-form').style.display = 'block';
   window.scrollTo(0, document.body.scrollHeight);
 }
 
-document.getElementById('signup-form').addEventListener('submit', function (e) {
+document.getElementById('signup-form').addEventListener('submit', function(e) {
   e.preventDefault();
-  
   const payload = {
     Date: selectedDate,
     Name: document.getElementById('name').value,
@@ -97,15 +180,8 @@ document.getElementById('signup-form').addEventListener('submit', function (e) {
       alert('Thank you! You are signed up.');
       document.getElementById('signup-form').reset();
       document.getElementById('signup-form').style.display = 'none';
-      fetchDates(); // refresh list
+      fetchSheetData(); // refresh
     } else {
-      alert('There was a problem: ' + result.message);
+      alert('Error: ' + result.message);
     }
   });
-});
-
-fetchDates();
-</script>
-
-</body>
-</html>
